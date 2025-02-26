@@ -24,7 +24,7 @@ class CastingQualityControl(toga.App):
         )
         self.db = Database()
 
-    def create_labeled_input(self, label_text, input_widget, width=180):
+    def create_labeled_input(self, label_text, input_widget, width=150):
         """Создает строку с меткой и полем ввода"""
         row = toga.Box(style=Pack(direction=ROW, padding=2))
         row.add(toga.Label(label_text, style=Pack(width=width)))
@@ -38,7 +38,7 @@ class CastingQualityControl(toga.App):
         # Обновляем стиль для секций
         section_style = Pack(
             direction=COLUMN,
-            padding=10,
+            padding=8,
             background_color=self.COLORS['surface']  # Используем self.COLORS
         )
 
@@ -53,15 +53,15 @@ class CastingQualityControl(toga.App):
         input_style = Pack(
             background_color=self.COLORS['input_bg'],
             color=self.COLORS['text'],
-            padding=5,
-            width=200
+            padding=3,
+            width=180
         )
 
         # Обновляем стиль для меток
         label_style = Pack(
-            width=180,
+            width=150,
             color=self.COLORS['text_dim'],
-            padding=(5, 10)
+            padding=(3, 5)
         )
 
         # Обновляем стиль для кнопки
