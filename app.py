@@ -266,7 +266,8 @@ class CastingQualityControl(toga.App):
             total_defects += int(value if value.isdigit() else 0)
             
         submitted = self.submitted_count.value or '0'
-        return int(submitted if submitted.isdigit() else 0) - total_defects
+        result = int(submitted if submitted.isdigit() else 0) - total_defects
+        return max(0, result)  # Возвращаем 0, если результат отрицательный
 
     def show_success_dialog(self):
         self.main_window.info_dialog(
@@ -282,8 +283,20 @@ class CastingQualityControl(toga.App):
 
     def save_record(self, widget):
         try:
-            accepted_count = self.calculate_accepted()
+            # Проверяем обязательные поля
+            if not self.casting_name.value:
+                raise ValueError("Необходимо указать наименование отливки")
             
+            if not self.submitted_count.value or not self.submitted_count.value.isdigit():
+                raise ValueError("Необходимо указать корректное количество поданных на контроль")
+                
+            if not self.acceptance_date.value:
+                raise ValueError("Необходимо указать дату приемки")
+
+            accepted_count = self.calculate_accepted()
+            date_str = self.acceptance_date.value.strftime('%d.%m.%Y') if self.acceptance_date.value else ''
+            
+            # Создаем кортеж данных
             data = (
                 self.casting_name.value,
                 self.executor1.value,
@@ -291,7 +304,7 @@ class CastingQualityControl(toga.App):
                 self.controller1.value,
                 self.controller2.value,
                 int(self.submitted_count.value or 0),
-                self.acceptance_date.value.strftime('%d.%m.%Y'),
+                date_str,
                 accepted_count,
                 *(int(field_data['input'].value or 0) for field_data in self.second_grade_fields.values()),
                 *(int(field_data['input'].value or 0) for field_data in self.rework_fields.values()),
@@ -301,6 +314,9 @@ class CastingQualityControl(toga.App):
             
             self.db.insert_record(data)
             self.show_success_dialog()
+                
+        except ValueError as ve:
+            self.show_error_dialog(str(ve))
         except Exception as e:
             self.show_error_dialog(f'Не удалось сохранить запись: {str(e)}')
 
