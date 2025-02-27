@@ -103,14 +103,23 @@ class SelectionManager:
         return getattr(self, list_type)
 
 class CastingQualityControl(toga.App):
-    # Определяем светлую цветовую схему как атрибут класса
+    # Добавляем константы
+    DEFAULT_WINDOW_SIZE = (900, 950)
+    DEFAULT_DIALOG_SIZE = (400, 250)
+    
+    # Улучшаем цветовую схему, добавляя цвета для разных состояний
     COLORS = {
-        'background': '#f0f2f5',     # Светло-серый фон
-        'surface': '#ffffff',        # Белый фон для секций
-        'primary': '#1976d2',        # Синий основной цвет
-        'text': '#202124',          # Темно-серый текст
-        'text_dim': '#5f6368',      # Приглушенный текст
-        'input_bg': '#ffffff',      # Белый фон для полей ввода
+        'background': '#f0f2f5',
+        'surface': '#ffffff',
+        'primary': '#1976d2',
+        'primary_hover': '#1565c0',  # Цвет при наведении
+        'danger': '#dc3545',         # Для кнопки удаления
+        'danger_hover': '#c82333',   # Для кнопки удаления при наведении
+        'text': '#202124',
+        'text_dim': '#5f6368',
+        'input_bg': '#ffffff',
+        'success': '#4BB543',        # Для диаграммы
+        'error': '#E53935',          # Для диаграммы
     }
 
     def __init__(self):
@@ -415,7 +424,7 @@ class CastingQualityControl(toga.App):
 
         # Устанавливаем контент и размер окна
         self.main_window.content = main_box
-        self.main_window.size = (900, 950)  # Увеличиваем высоту с 900 до 950
+        self.main_window.size = self.DEFAULT_WINDOW_SIZE
         self.main_window.show()
 
     def calculate_accepted(self):
@@ -448,55 +457,121 @@ class CastingQualityControl(toga.App):
         return max(0, result)  # Не допускаем отрицательных значений
 
     def show_success_dialog(self):
-        self.main_window.info_dialog(
-            'Успех',
-            'Запись успешно сохранена'
+        dialog = toga.InfoDialog(
+            title='Успех',
+            message='Запись успешно сохранена'
         )
+        self.main_window.dialog(dialog)
 
     def show_error_dialog(self, message):
-        self.main_window.error_dialog(
-            'Ошибка',
-            message
+        dialog = toga.ErrorDialog(
+            title='Ошибка',
+            message=message
         )
+        self.main_window.dialog(dialog)
+
+    def clear_form(self):
+        """Очищает все поля формы"""
+        try:
+            # Используем словарь для группировки полей
+            field_groups = {
+                'selection_fields': [
+                    self.casting_name,
+                    self.executor1,
+                    self.executor2,
+                    self.controller1,
+                    self.controller2
+                ],
+                'input_fields': [
+                    self.submitted_count,
+                    self.accepted_count
+                ],
+                'second_grade': self.second_grade_fields,
+                'rework': self.rework_fields,
+                'final_defects': self.final_defect_fields
+            }
+            
+            # Очищаем поля выбора
+            for field in field_groups['selection_fields']:
+                field.value = ''
+                
+            # Очищаем поля ввода
+            for field in field_groups['input_fields']:
+                field.value = ''
+                
+            # Очищаем дату
+            self.acceptance_date.value = None
+            
+            # Очищаем поля с дефектами
+            for field_dict in [field_groups['second_grade'], field_groups['rework']]:
+                for field_data in field_dict.values():
+                    field_data['input'].value = ''
+                    
+            # Очищаем поля окончательного брака
+            for field in field_groups['final_defects'].values():
+                field.value = ''
+                
+            # Очищаем примечания
+            self.notes.value = ''
+            
+            # Обновляем диаграмму
+            self.draw_pie_chart()
+            
+        except Exception as e:
+            print(f"Ошибка при очистке формы: {e}")
 
     def save_record(self, widget):
         try:
-            # Проверяем обязательные поля
-            if not self.casting_name.value:
-                raise ValueError("Необходимо указать наименование отливки")
-            
-            if not self.submitted_count.value or not self.submitted_count.value.isdigit():
-                raise ValueError("Необходимо указать корректное количество поданных на контроль")
-                
-            if not self.acceptance_date.value:
-                raise ValueError("Необходимо указать дату приемки")
+            # Проверяем все ошибки сразу
+            errors = self.validate_data()
+            if errors:
+                self.show_error_dialog("\n".join(errors))
+                return
 
-            accepted_count = self.calculate_accepted()
-            date_str = self.acceptance_date.value.strftime('%d.%m.%Y') if self.acceptance_date.value else ''
+            # Форматируем дату
+            date_str = self.acceptance_date.value.strftime('%d.%m.%Y')
             
-            # Создаем кортеж данных
-            data = (
-                self.casting_name.value,
-                self.executor1.value,
-                self.executor2.value,
-                self.controller1.value,
-                self.controller2.value,
-                int(self.submitted_count.value or 0),
-                date_str,
-                accepted_count,
-                *(int(field_data['input'].value or 0) for field_data in self.second_grade_fields.values()),
-                *(int(field_data['input'].value or 0) for field_data in self.rework_fields.values()),
-                *(int(field.value or 0) for field in self.final_defect_fields.values()),
-                self.notes.value
+            # Создаем словарь данных для лучшей читаемости
+            data = {
+                'casting_name': self.casting_name.value,
+                'executor1': self.executor1.value,
+                'executor2': self.executor2.value,
+                'controller1': self.controller1.value,
+                'controller2': self.controller2.value,
+                'submitted_count': int(self.submitted_count.value),
+                'acceptance_date': date_str,
+                'accepted_count': self.calculate_accepted(),
+                'second_grade': {key: int(field_data['input'].value or 0) 
+                               for key, field_data in self.second_grade_fields.items()},
+                'rework': {key: int(field_data['input'].value or 0) 
+                          for key, field_data in self.rework_fields.items()},
+                'final_defects': {key: int(field.value or 0) 
+                                for key, field in self.final_defect_fields.items()},
+                'notes': self.notes.value
+            }
+            
+            # Преобразуем словарь в кортеж для базы данных
+            record = (
+                data['casting_name'],
+                data['executor1'],
+                data['executor2'],
+                data['controller1'],
+                data['controller2'],
+                data['submitted_count'],
+                data['acceptance_date'],
+                data['accepted_count'],
+                *data['second_grade'].values(),
+                *data['rework'].values(),
+                *data['final_defects'].values(),
+                data['notes']
             )
             
-            self.db.insert_record(data)
+            self.db.insert_record(record)
             self.show_success_dialog()
+            self.clear_form()
                 
-        except ValueError as ve:
-            self.show_error_dialog(str(ve))
         except Exception as e:
-            self.show_error_dialog(f'Не удалось сохранить запись: {str(e)}')
+            self.show_error_dialog(f'Ошибка при сохранении: {str(e)}')
 
     def draw_pie_chart(self):
         try:
@@ -635,7 +710,7 @@ class CastingQualityControl(toga.App):
         dialog_window.content = dialog_box
         
         # Устанавливаем размер окна
-        dialog_window.size = (400, 250)
+        dialog_window.size = self.DEFAULT_DIALOG_SIZE
         
         # Показываем окно
         dialog_window.show()
@@ -650,6 +725,27 @@ class CastingQualityControl(toga.App):
             items = self.selection_manager.get_list(list_type)
             self.controller1.items = items
             self.controller2.items = items
+
+    def validate_data(self):
+        """Проверяет корректность введенных данных"""
+        errors = []
+        
+        if not self.casting_name.value:
+            errors.append("Необходимо указать наименование отливки")
+        
+        if not self.submitted_count.value or not self.submitted_count.value.isdigit():
+            errors.append("Необходимо указать корректное количество поданных на контроль")
+        
+        if not self.acceptance_date.value:
+            errors.append("Необходимо указать дату приемки")
+            
+        if not self.executor1.value and not self.executor2.value:
+            errors.append("Необходимо указать хотя бы одного исполнителя")
+            
+        if not self.controller1.value and not self.controller2.value:
+            errors.append("Необходимо указать хотя бы одного контролера")
+            
+        return errors
 
 def main():
     return CastingQualityControl()
