@@ -81,12 +81,34 @@ class CastingQualityControl(toga.App):
         def update_accepted_count(widget):
             self.accepted_count.value = str(self.calculate_accepted())
 
+        def validate_positive_integer(widget):
+            """Проверяет и корректирует введенное значение"""
+            if widget.value:
+                # Оставляем только цифры и сразу обновляем значение
+                old_value = widget.value
+                new_value = ''.join(char for char in widget.value if char.isdigit())
+                
+                # Удаляем ведущие нули, если число не пустое
+                if new_value:
+                    new_value = str(int(new_value))
+                
+                # Если значение изменилось, обновляем поле
+                if new_value != old_value:
+                    widget.value = new_value
+            else:
+                widget.value = ''  # Оставляем поле пустым вместо '0'
+            
+            # Обновляем количество принятых
+            update_accepted_count(widget)
+
+        # Обновляем создание полей ввода для числовых значений
         def create_input_with_update(placeholder):
             input_field = toga.TextInput(
                 placeholder=placeholder,
                 style=input_style
             )
-            input_field.on_change = update_accepted_count
+            # Добавляем обработчик изменений
+            input_field.on_change = validate_positive_integer
             return input_field
 
         # Основная информация
@@ -103,11 +125,9 @@ class CastingQualityControl(toga.App):
             placeholder='Введите количество',
             style=input_style
         )
+        self.submitted_count.on_change = validate_positive_integer
         self.acceptance_date = toga.DateInput(style=input_style)
         self.accepted_count = toga.TextInput(readonly=True, style=input_style)
-        
-        # Добавляем обработчик для submitted_count
-        self.submitted_count.on_change = update_accepted_count
         
         basic_fields = [
             ('Наименование отливки:', self.casting_name),
